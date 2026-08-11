@@ -1,0 +1,24 @@
+[project]
+name = "e-store-extension-canada-api"
+version = "0.1.0"
+description = "API for e-store extension canada"
+authors = []
+requires-python = ">=3.14"
+dependencies = [
+    "duckdb>=1.5.5",
+    "fastapi>=0.141.1",
+    "pydantic-settings>=2.15.0",
+    "slowapi>=0.1.10",
+    "uvicorn[standard]>=0.52.1",
+]
+
+[project.scripts]
+serve = "app:main"
+
+[tool.uv.build-backend]
+module-name = "app"
+module-root = ""
+
+[build-system]
+requires = ["uv_build>=0.12.3,<0.13.0"]
+build-backend = "uv_build"
