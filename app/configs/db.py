@@ -11,3 +11,6 @@ def get_db_connection():
 
 def get_cursor():
     return get_db_connection().cursor()
+
+def get_db():
+    yield get_db_connection()
