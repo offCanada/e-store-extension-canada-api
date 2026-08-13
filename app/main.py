@@ -1,14 +1,13 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
 from app.configs.limiter import limiter
 from app.configs.db import get_db_connection
 from app.configs.settings import settings
+from app.exceptions import register_exception_handlers
 from app.routers import api_router
 
-# global db state
+# global db connection
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # startup
@@ -19,11 +18,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="E-Store Extension Canada API", lifespan=lifespan)
 
-# rate limiting middleware
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler) # type: ignore[arg-type]
+# exception handlers
+register_exception_handlers(app)
 
-# cors middleware
+# middlewares
+
+# rate limiting
+app.state.limiter = limiter
+
+# cors
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
@@ -31,5 +34,5 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# adds all the routes
+# routes
 app.include_router(api_router)

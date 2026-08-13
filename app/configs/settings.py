@@ -1,8 +1,12 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 class Settings(BaseSettings):
     # database
-    DB_PATH: str = "data/nutrilens.duckdb"
+    DB_PATH: str = str(BASE_DIR / "app" / "data" / "nutrilens.duckdb")
     READ_ONLY: bool = True
 
     # requests
