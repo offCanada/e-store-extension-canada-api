@@ -1,16 +1,27 @@
-from itertools import product
 import random
 
-from app.models.product import MatchType, NutrientLevels, NutrientValue, Product, Scores
+from app.models.product import MatchType, NutrientLevels, Product, Scores
 from app.models.product_search_params import ProductSearchParams
+from app.services.nutrient_service import NutrientService
 
 
 class ProductService:
+    """Handles product lookup and assembly into the response model.
+
+    Orchestrates exact lookup by barcode/UPC or product id, then maps the raw
+    database row into a :class:`Product`, delegating score and nutrient-level
+    computation to dedicated services.
+    """
+
     def __init__(self, con):
         self.con = con
 
     def lookup_by_ids(self, product_id: str | None, code: str | None) -> dict | None:
-        """Direct lookup based on product id or barcode or both."""
+        """Direct lookup based on product id (``external_id``) or barcode (``upc``) or both.
+
+        Returns the first matching raw product details as a dict, or ``None`` if no
+        match is found. Both identifiers may be provided; they are combined with ``AND``.
+        """
         conditions = []
         params = []
 
@@ -26,21 +37,11 @@ class ProductService:
 
         query = f"SELECT * FROM product_merged WHERE {' AND '.join(conditions)} LIMIT 1"
         cursor = self.con.execute(query, params)
-        row = cursor.fetchone()
-        if row is None:
+        product = cursor.fetchone()
+        if product is None:
             return None
         columns = [desc[0] for desc in cursor.description]
-        return dict(zip(columns, row))
-
-    def search_by_query(self, search_query: str, limit: int = 10) -> list[dict]:
-        """Fallback fuzzy/text search."""
-        cursor = self.con.execute(
-            "SELECT * FROM product_merged WHERE title ILIKE ? OR brand ILIKE ? LIMIT ?",
-            [f"%{search_query}%", f"%{search_query}%", limit],
-        )
-        rows = cursor.fetchall()
-        columns = [desc[0] for desc in cursor.description]
-        return [dict(zip(columns, row)) for row in rows]
+        return dict(zip(columns, product))
 
     def find(self, params: ProductSearchParams) -> Product | None:
         """Orchestrates: try exact lookup first, fall back to search."""
@@ -49,38 +50,55 @@ class ProductService:
             if product is not None:
                 return self.build_product(product, MatchType.DIRECT)
 
-        # if params.search_query:
-        #     return self.search_by_query(params.search_query)
-
         return None
 
-    def build_product(self, row: dict, match_type: MatchType) -> Product:
-        """Assembly — maps raw + computed data into the response model."""
+    def build_product(self, product: dict, match_type: MatchType) -> Product:
+        """Assembly — maps raw + computed data into the response model.
+
+        Fields like ``scores`` and ``nutrient_levels`` are computed by delegating to
+        :meth:`compute_scores` and :meth:`compute_nutrient_levels`.
+        """
 
         return Product(
-            barcode=row["upc"],
-            product_id=row["external_id"],
-            brand=row["brand"],
-            title=row["core_title"],
-            image_url=row["image_url"],
-            taxonomy=row["reference_db_taxonomy"].title(),
-            size=row["size"],
-            serving_size=row["serving_size"],
-            scores=self.compute_scores(row),
-            nutrient_levels=self.compute_nutrient_levels(row),
+            barcode=product["upc"],
+            product_id=product["external_id"],
+            brand=product["brand"],
+            title=product["core_title"],
+            image_url=product["image_url"],
+            taxonomy=product["reference_db_taxonomy"].title(),
+            size=product["size"],
+            serving_size=product["serving_size"],
+            scores=self.compute_scores(product),
+            nutrient_levels=self.compute_nutrient_levels(product),
             match_type=match_type
         )
 
-    def compute_scores(self, row: dict) -> Scores:
-        """Compute product scores from raw row data."""
+    def compute_scores(self, product: dict) -> Scores:
+        """Compute product scores from raw product data.
+
+        ``nutri_score`` is derived from ``nutri_score_points`` via
+        :meth:`compute_nutri_score`. ``eco_score`` and ``nova_score`` are placeholders
+        (random dummies) until their real calculators are implemented.
+        """
         grades = ['a', 'b', 'c', 'd', 'e', 'unknown']
         return Scores(
-            nutri_score=self.compute_nutri_score(row["nutri_score_points"]),
+            nutri_score=self.compute_nutri_score(product["nutri_score_points"]),
             eco_score=grades[random.randint(0, 4)],
             nova_score=str(random.randint(1,4)),
         )
 
     def compute_nutri_score(self, points: float | None) -> str:
+        """Map raw Nutri-Score points to a letter grade (``a``-``e``).
+
+        Thresholds:
+            a: points <= 0
+            b: points 1-2
+            c: points 3-10
+            d: points 11-18
+            e: points > 18
+
+        A ``None`` or non-numeric value yields ``"unknown"``.
+        """
         if points is None or not isinstance(points, (int, float)):
             return "unknown"
         if points <= 0:
@@ -93,28 +111,6 @@ class ProductService:
             return "d"
         return "e"
 
-    def compute_nutrient_levels(self, row: dict) -> NutrientLevels:
-        """Compute nutrient levels from raw row data."""
-        return NutrientLevels(
-            fat=NutrientValue(
-                value=self.format_nutrient_value(row["fat_per_100g"], 'g'),
-                level="low"
-            ),
-            saturated_fat=NutrientValue(
-                value=self.format_nutrient_value(row["saturated_fat_per_100g"], 'g'),
-                level="moderate"
-            ),
-            sugars=NutrientValue(
-                value=self.format_nutrient_value(row["sugars_per_100g"], 'g'),
-                level="high"
-            ),
-            sodium=NutrientValue(
-                value=self.format_nutrient_value(row["sodium_per_100g"], 'mg'),
-                level="unknown"
-            )
-        )
-
-    def format_nutrient_value(self, value: float | None, unit: str) -> str | None:
-        if value is None:
-            return None
-        return f"{value:.2f}{unit}/100g"
+    def compute_nutrient_levels(self, product: dict) -> NutrientLevels:
+        """Compute nutrient levels from raw product data."""
+        return NutrientService().compute_nutrient_levels(product)
