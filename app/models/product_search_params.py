@@ -32,8 +32,18 @@ class ProductSearchParams(BaseModel):
                 raise ValueError("search_query too long (max 250 characters)")
         return v
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_blank_values(cls, data):
+        if isinstance(data, dict):
+            return {
+                key: (None if isinstance(value, str) and not value.strip() else value)
+                for key, value in data.items()
+            }
+        return data
+
     @model_validator(mode="after")
-    def check_at_least_one(self):
-        if not any([self.product_id, self.code, self.search_query]):
-            raise ValueError("Provide at least one of product_id, code, or search_query")
+    def require_search_key(self):
+        if not (self.product_id or self.code):
+            raise ValueError("Provide at least one of product_id or code")
         return self

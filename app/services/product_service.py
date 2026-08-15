@@ -62,12 +62,12 @@ class ProductService:
         return Product(
             barcode=product["upc"],
             product_id=product["external_id"],
-            brand=product["brand"],
-            title=product["core_title"],
-            image_url=product["image_url"],
-            taxonomy=product["reference_db_taxonomy"].title(),
-            size=product["size"],
-            serving_size=product["serving_size"],
+            brand=product.get("brand"),
+            title=product.get("core_title"),
+            image_url=product.get("image_url"),
+            taxonomy=(product.get("reference_db_taxonomy") or "").title() or None,
+            size=product.get("size"),
+            serving_size=product.get("serving_size"),
             scores=self.compute_scores(product),
             nutrient_levels=self.compute_nutrient_levels(product),
             match_type=match_type
