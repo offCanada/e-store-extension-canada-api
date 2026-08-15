@@ -24,12 +24,12 @@ class Product(BaseModel):
     barcode: str
     product_id: str
 
-    brand: str
-    title: str
-    image_url: str
-    taxonomy: str
-    size: str
-    serving_size: str
+    brand: str | None = None
+    title: str | None = None
+    image_url: str | None = None
+    taxonomy: str | None = None
+    size: str | None = None
+    serving_size: str | None = None
 
     scores: Scores
     nutrient_levels: NutrientLevels
