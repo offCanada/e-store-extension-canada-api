@@ -10,7 +10,7 @@ class TestGetProductSearch:
         assert body["message"] == "product found"
         assert body["error"] is None
         assert body["product"]["barcode"] == "055742561111"
-        assert body["product"]["nutrient_levels"]["fat"]["level"] == "high"
+        assert body["product"]["nutrient_levels"]["fat"]["level"] == "moderate"  # 4.5 g on a 30 g serving = 6% DV
 
     def test_product_with_null_nutrients_returns_unknown(self, client):
         response = client.get("/api/v1/products/search", params={"code": "000000000002"})
