@@ -87,7 +87,7 @@ class TestBuildProduct:
         assert product.taxonomy == "Meat_Seafood"
         assert product.match_type == MatchType.DIRECT
         assert product.scores.nutri_score == "c"
-        assert product.nutrient_levels.fat.level == "high"
+        assert product.nutrient_levels.fat.level == "moderate"  # 4.5 g on a 30 g serving = 6% DV
 
 
 class TestComputeScores:

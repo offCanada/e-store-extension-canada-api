@@ -62,3 +62,56 @@ class TestMissingValues:
         assert levels.fat.level == "unknown"
         assert levels.sodium.value is None
         assert levels.sodium.level == "unknown"
+
+
+class TestServingBasedLevels:
+    """%DV computed on the parsed serving size instead of 100 g."""
+
+    def test_scales_to_serving(self):
+        # 15 g/100g fat, 30 g serving -> 4.5 g -> 6% DV -> moderate
+        levels = NutrientService().compute_nutrient_levels(
+            {"fat_per_100g": 15.0, "serving_size": "30 g"}
+        )
+        assert levels.fat.value == "4.50g/serving"
+        assert levels.fat.level == "moderate"
+
+    def test_sodium_mg_scaling(self):
+        # 400 mg/100g sodium, 30 g serving -> 120 mg -> ~5.2% DV -> moderate
+        levels = NutrientService().compute_nutrient_levels(
+            {"sodium_per_100g": 400.0, "serving_size": "30 g"}
+        )
+        assert levels.sodium.value == "120.00mg/serving"
+        assert levels.sodium.level == "moderate"
+
+    @pytest.mark.parametrize(
+        ("serving_size", "expected_value"),
+        [
+            ("250 ml", "37.50g/serving"),   # ml treated as grams (density ~1)
+            ("1 kg", "150.00g/serving"),
+            ("0.5 l", "75.00g/serving"),
+            ("30g", "4.50g/serving"),       # no space
+        ],
+    )
+    def test_unit_parsing(self, serving_size, expected_value):
+        levels = NutrientService().compute_nutrient_levels(
+            {"fat_per_100g": 15.0, "serving_size": serving_size}
+        )
+        assert levels.fat.value == expected_value
+
+    def test_unparseable_serving_falls_back_to_100g(self):
+        levels = NutrientService().compute_nutrient_levels(
+            {"fat_per_100g": 15.0, "serving_size": "2 cookies"}
+        )
+        assert levels.fat.value == "15.00g/100g"
+        assert levels.fat.level == "high"
+
+    def test_missing_serving_falls_back_to_100g(self):
+        levels = NutrientService().compute_nutrient_levels({"fat_per_100g": 15.0})
+        assert levels.fat.value == "15.00g/100g"
+
+    def test_boundary_on_serving_basis(self):
+        # fat DV = 75 g; 5% of DV = 3.75 g per serving -> 25 g serving needs 15 g/100g
+        levels = NutrientService().compute_nutrient_levels(
+            {"fat_per_100g": 15.0, "serving_size": "25 g"}
+        )
+        assert levels.fat.level == "low"
